@@ -42,4 +42,4 @@ if (firebaseConfig.projectId) {
   console.warn("Firebase projectId missing. Authentication will be disabled.");
 }
 
-export { app, analytics, auth, db };// firebase safe mode fix
+export { app, analytics, auth, db }; // firebase build trigger v2
