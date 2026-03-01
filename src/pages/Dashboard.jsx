@@ -18,31 +18,42 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const [enrolledCourses, setEnrolledCourses] = useState([])
+  const [wishlist, setWishlist] = useState([])
   const [activeTab, setActiveTab] = useState('courses')
+  const [messages, setMessages] = useState([
+    { id: 1, sender: 'John Instructor', text: 'Welcome to the course! Let me know if you have questions.', time: '2h ago', unread: true },
+    { id: 2, sender: 'Support', text: 'Your transaction was successful. Happy learning!', time: '1d ago', unread: false },
+  ])
 
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
-    const fetchEnrollments = async () => {
+    const fetchData = async () => {
       try {
-        // Fallback to empty email for testing if user properties are missing
         const userEmail = user?.email || 'guest@example.com';
-        const q = query(collection(db, 'enrollments'), where('userEmail', '==', userEmail));
-        const querySnapshot = await getDocs(q);
+        
+        // Fetch Enrollments
+        const eq = query(collection(db, 'enrollments'), where('userEmail', '==', userEmail));
+        const eSnap = await getDocs(eq);
         const enrolled = [];
-        querySnapshot.forEach((doc) => {
-          enrolled.push({ firestoreId: doc.id, ...doc.data() });
-        });
-        // Sort by id (Date.now()) descending so newest are first
+        eSnap.forEach((doc) => enrolled.push({ firestoreId: doc.id, ...doc.data() }));
         setEnrolledCourses(enrolled.sort((a, b) => b.id - a.id));
+
+        // Fetch Wishlist
+        const wq = query(collection(db, 'wishlist'), where('userEmail', '==', userEmail));
+        const wSnap = await getDocs(wq);
+        const wish = [];
+        wSnap.forEach((doc) => wish.push({ firestoreId: doc.id, ...doc.data() }));
+        setWishlist(wish);
+
       } catch (err) {
-        console.error("Error fetching enrollments:", err);
+        console.error("Dashboard Fetch Error:", err);
       }
     };
 
-    fetchEnrollments();
+    fetchData();
   }, [user?.email, navigate]);
 
   const handleLogout = async () => {
@@ -262,6 +273,70 @@ export default function Dashboard() {
                    </motion.div>
                  )}
 
+                  {activeTab === 'wishlist' && (
+                    <motion.div 
+                      key="wishlist"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex flex-col gap-8"
+                    >
+                      <h2 className="text-2xl font-black text-slate-800 flex items-center gap-4">
+                        My <span className="text-indigo-600">Wishlist</span>
+                        <div className="h-[2px] grow bg-slate-200 rounded-full" />
+                      </h2>
+                      {wishlist.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          {wishlist.map((course) => (
+                            <div key={course.id} className="bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-sm flex flex-col gap-4 group">
+                               <img src={course.image} className="w-full aspect-video object-cover rounded-3xl" alt={course.name} />
+                               <h4 className="font-black text-slate-800 line-clamp-1">{course.name}</h4>
+                               <div className="flex items-center justify-between mt-2">
+                                 <span className="text-lg font-black text-indigo-600">${course.price}</span>
+                                 <Link to={`/course/${course.id}`} className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600">View Details</Link>
+                               </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-white rounded-[3rem] py-20 flex flex-col items-center text-center gap-6 border-2 border-dashed border-slate-200">
+                           <Star size={48} className="text-slate-200" />
+                           <p className="text-slate-500 font-bold">Your wishlist is empty.</p>
+                           <Link to="/courses" className="btn-primary py-3 px-8 rounded-xl text-sm">Explore Courses</Link>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'messages' && (
+                    <motion.div 
+                      key="messages"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="bg-white rounded-[3rem] p-2 overflow-hidden shadow-sm border border-slate-100 flex flex-col"
+                    >
+                      <div className="p-8 border-b border-slate-50">
+                        <h2 className="text-2xl font-black text-slate-800">Message <span className="text-indigo-600">Center</span></h2>
+                      </div>
+                      <div className="flex flex-col">
+                        {messages.map((msg) => (
+                          <button key={msg.id} className="p-8 flex items-start gap-6 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 text-left relative group">
+                            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-400 shrink-0">
+                              {msg.sender.charAt(0)}
+                            </div>
+                            <div className="flex flex-col gap-1 grow">
+                              <div className="flex items-center justify-between">
+                                <span className={`font-black ${msg.unread ? 'text-slate-900' : 'text-slate-600'}`}>{msg.sender}</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{msg.time}</span>
+                              </div>
+                              <p className={`text-sm line-clamp-2 ${msg.unread ? 'text-slate-600 font-bold' : 'text-slate-400'}`}>{msg.text}</p>
+                            </div>
+                            {msg.unread && <div className="absolute left-4 top-1/2 -translate-y-1/2 w-2 h-2 bg-indigo-500 rounded-full" />}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
                  {activeTab === 'history' && (
                    <motion.div 
                      key="history"
@@ -363,7 +438,7 @@ export default function Dashboard() {
                    </motion.div>
                  )}
 
-                 {activeTab !== 'courses' && activeTab !== 'settings' && activeTab !== 'history' && activeTab !== 'achievements' && (
+                 {activeTab !== 'courses' && activeTab !== 'settings' && activeTab !== 'history' && activeTab !== 'achievements' && activeTab !== 'wishlist' && activeTab !== 'messages' && (
                     <motion.div 
                        key="coming-soon"
                        initial={{ opacity: 0, scale: 0.95 }}

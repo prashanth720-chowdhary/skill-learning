@@ -5,14 +5,20 @@ import {
   ArrowLeft, Share2, Heart, Award, ShieldCheck, 
   Infinity, MonitorPlay, FileText, Smartphone 
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { db } from '../firebase'
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
+import { useAuth } from '../App'
 
 export default function CourseDetails() {
   const { id } = useParams()
   const course = courses.find(c => c.id === parseInt(id))
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [isFixed, setIsFixed] = useState(false)
+  const [wishlistLoading, setWishlistLoading] = useState(false)
+  const [wishlistStatus, setWishlistStatus] = useState(null) // 'added', 'exists', 'error'
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,6 +27,39 @@ export default function CourseDetails() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const handleAddToWishlist = async () => {
+    if (!user) {
+      alert("Please login to add courses to your wishlist.");
+      return;
+    }
+
+    setWishlistLoading(true);
+    try {
+      const wishlistRef = collection(db, 'wishlist');
+      const q = query(wishlistRef, where('userEmail', '==', user.email), where('id', '==', course.id));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        setWishlistStatus('exists');
+        setTimeout(() => setWishlistStatus(null), 3000);
+        return;
+      }
+
+      await addDoc(wishlistRef, {
+        ...course,
+        userEmail: user.email,
+        addedAt: Date.now()
+      });
+      setWishlistStatus('added');
+      setTimeout(() => setWishlistStatus(null), 3000);
+    } catch (err) {
+      console.error("Wishlist Error:", err);
+      setWishlistStatus('error');
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
 
   if (!course) return (
     <div className="min-h-screen flex items-center justify-center pt-32 p-8 text-center flex-col gap-8 bg-slate-50">
@@ -175,8 +214,20 @@ export default function CourseDetails() {
                     <Link to={`/enroll/${course.id}`} className="btn-primary w-full py-5 rounded-2xl text-lg font-black shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/50 active:scale-[0.98] transition-all">
                       Enroll & Start Learning
                     </Link>
-                    <button className="btn-outline w-full py-4.5 rounded-2xl font-black text-slate-700 hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                      <Heart size={20} className="text-rose-500" /> Add to wishlist
+                    <button 
+                      onClick={handleAddToWishlist}
+                      disabled={wishlistLoading || wishlistStatus === 'added'}
+                      className={`btn-outline w-full py-4.5 rounded-2xl font-black transition-all flex items-center justify-center gap-2 ${
+                        wishlistStatus === 'added' ? 'bg-rose-50 border-rose-200 text-rose-600' : 'text-slate-700'
+                      }`}
+                    >
+                      <Heart 
+                        size={20} 
+                        className={wishlistStatus === 'added' ? 'fill-rose-500 text-rose-500' : 'text-rose-500'} 
+                      /> 
+                      {wishlistLoading ? 'Adding...' : 
+                       wishlistStatus === 'added' ? 'Added to Wishlist' : 
+                       wishlistStatus === 'exists' ? 'Already in Wishlist' : 'Add to wishlist'}
                     </button>
                   </div>
 
